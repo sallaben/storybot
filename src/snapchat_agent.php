@@ -8,12 +8,6 @@
 abstract class SnapchatAgent {
 
 	/*
-	 * App version (as of 2013-11-20). Before updating this value, confirm
-	 * that the library requests everything in the same way as the app.
-	 */
-	const VERSION = '4.1.07';
-
-	/*
 	 * The API URL. We're using the /bq endpoint, the one that the iPhone
 	 * uses. Android clients still seem to be using the /ph endpoint.
 	 *
@@ -53,7 +47,8 @@ abstract class SnapchatAgent {
 		CURLOPT_CONNECTTIMEOUT => 5,
 		CURLOPT_RETURNTRANSFER => TRUE,
 		CURLOPT_TIMEOUT => 10,
-		CURLOPT_HTTPHEADER =>array('Accept-Language: en'),
+		CURLOPT_USERAGENT => 'Snapchat/6.1.2 (iPhone; iOS 7.0.4; gzip)',
+		CURLOPT_HTTPHEADER => array('Accept-Language: en'),
 	);
 
 	/**
@@ -285,7 +280,6 @@ abstract class SnapchatAgent {
 		$ch = curl_init();
 
 		$data['req_token'] = self::hash($params[0], $params[1]);
-		$data['version'] = self::VERSION;
 
 		if (!$multipart) {
 			$data = http_build_query($data);
@@ -295,6 +289,7 @@ abstract class SnapchatAgent {
 			CURLOPT_POST => TRUE,
 			CURLOPT_POSTFIELDS => $data,
 			CURLOPT_URL => self::URL . $endpoint,
+			CURLOPT_USERAGENT => 'Snapchat/8.1.1 (iPhone; iOS 8.1.2; gzip)',
 		);
 		curl_setopt_array($ch, $options);
 

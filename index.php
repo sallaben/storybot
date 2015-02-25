@@ -1,19 +1,30 @@
 <?php
 define("IN_STORYBOT", 1);
 require_once("config/config.php");
-if(is_mod(mod_id())) {
-	header("Location: mod.php");
-} else {
-	echo('<html>
+if(!is_mod(mod_id())) {
+	echo <<<END
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<html>
 <head>
-<title>Storybot - '.$config['username'].'</title>
+<title>Storybot Register</title>
+<link rel="stylesheet" type="text/css" href="media/style.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 </head>
 <body>
-<img src="http://b.thumbs.redditmedia.com/in0eLkjDwflTCR6bw5NxYtLb2OhCtzNhZJrkgA-g30M.png" /><hr />
-<form action="register.php" method="GET">
-Click to register and be a mod! By registering, you agree that a md5 hash of your IP will be logged for identification purposes. You cannot "unregister" (accounts are permanent).<br /><br />If you abuse this moderation privilege, you can and will be banned.<br /><br /><input type="submit" value="Register">
+<center>
+<img src="media/logo.png" />
+<br />
+<form action='action.php' method='GET'>
+Click to register!
+<br />
+<input type="hidden" name="type" value="register" />
+<input type="submit" value="Register" />
 </form>
-</body>
-</html>');
+END;
+} else {
+	header("Location: mod.php");
 }
 ?>
+</center>
+</body>
+</html>

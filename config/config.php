@@ -1,80 +1,417 @@
 <?php
+
+require_once("settings.php");
+
+// *** DISALLOWS DIRECT ACCESS OF SOME FILES, DETERS HACKERS *** //
 if(!defined("IN_STORYBOT")) {
 	die("Invalid access!");
 }
-require_once("src/snapchat.php");
+// *** ----------------------------------------------------- *** //
 
-$config = array();
-$config['username'] = 'SNAPCHAT-USERNAME';
-$config['password'] = 'SNAPCHAT-PASSWORD';
+// *** FIRST TIME RUNNING? DIRECT TO INSTALL DIR *** //
+if(($config['firstsetup'] == true) && (!defined("IN_INSTALL"))) {
+	header("Location: install/");
+}
+// *** ----------------------------------------- *** //
 
-$config['adminpassword'] = 'ADMIN-PASSWORD'; //v2.1, does nothing now
-$config['secret'] = "secretj32h09"; //some random characters. DO NOT CHANGE IT except if you are starting a new installation.
+// *** DISABLED? *** //
+if(!defined("IN_INSTALL")) {
+	$db = new mysqli($config['dbhost'], $config['dbuser'], $config['dbpass'], $config['dbname']); //do not edit
+	if(($config['enabled'] == "false") && (!is_admin(mod_id(), $db))) {
+		die("Storybot is disabled for non-admin use at the moment!");
+	}
+}
+// *** --------- *** //
 
-$config['moderation'] = true; //disable for instant posting
-
-$config['max_snaps_per_hour'] = 150;
-
-$config['NSFW'] = true; //v2.1
-
-$config['picturesallowed'] = true;
-$config['videosallowed'] = false;
-$config['send_verify_snap'] = true;
-$config['picturetime'] = 3;
-$config['videotime'] = 5;
-
-$config['firstsetup'] = true;
-
-if(strpos(file_get_contents("admin/mod_banned"), mod_id()) !== false) {
-	die("Your mod ID is banned! Sorry, but you abused it, and this is the consequence.");
+if(defined("IN_INSTALL")) {
+	require_once("../src/snapchat.php"); //required for Snapchat API
+	if(file_exists("lock.true")) {
+		$db = new mysqli($config['dbhost'], $config['dbuser'], $config['dbpass'], $config['dbname']); //do not edit
+		addModerator(mod_id(), $db);
+		die("<h1>Storybot is successfully installed!</h1>You should delete the /install/ directory for security purposes. You can now visit the root directory and begin to moderate Storybot if you selected moderation=true, or if you didn't, you should now set up a Cron job for bot.php on some interval. Enjoy! If you have any questions, please contact <a href='http://www.reddit.com/u/bicycle'>/u/bicycle</a> on Reddit or visit <a href='http://www.reddit.com/r/storybot'>/r/storybot</a>.");
+	}
+} else {
+	require_once("src/snapchat.php"); //required for Snapchat API
 }
 
+//***************************************************************************************************
+//VARIABLES
+//***************************************************************************************************
+
+// *** CONNECT TO DATABASE *** //
+if($config['firstsetup'] != true) {
+	$db = new mysqli($config['dbhost'], $config['dbuser'], $config['dbpass'], $config['dbname']); //do not edit
+	if($db->connect_errno > 0){
+	    die("Database connection error: ".$db->connect_error);
+	}
+}
+// *** ------------------- *** //
+
+// *** INITIALIZE SNAPCHAT *** //
+$snapchat = new Snapchat($config['username'], $config['password']); //do not edit
+// *** ------------------- *** //
+
+//***************************************************************************************************
+//FUNCTIONS
+//***************************************************************************************************
+
+// *** CHECK FOR BANNED SNAPCHAT USER *** //
 function is_banned($username) {
-	if(strpos(file_get_contents("admin/snap_banned"), $username) !== false) {
-		return true;
-	} else {
-		return false;
+	$sql = "SELECT * FROM `bans` WHERE `bans`.`username` = '".$username."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (is_banned)");
+	}
+	while($row = $result->fetch_assoc()){
+		if($row['username'] != "") {
+			return true;
+		} else {
+			return false;
+		}
 	}
 }
-function is_mod($id) {
-	if(strpos(file_get_contents("admin/mod_ids"), $id) !== false) {
-		return true;
-	} else {
-		return false;
-	}
-}
+// *** ------------------------------ *** //
 
-function mod_id() {
-	$mod_id = md5("storybot".$_SERVER['REMOTE_ADDR'].$config['secret']);
+// *** CHECK IF USER IS MOD *** //
+function is_mod($id) {
+	$sql = "SELECT * FROM `mods` WHERE `mods`.`mod_id` = '".$id."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (is_mod)");
+	}
+	while($row = $result->fetch_assoc()){
+		if($row['banned'] == "0") {
+			return true;
+		} elseif($row['banned'] == "1") { 
+			die("You are banned from moderation.");
+		} else {
+			return false;
+		}
+	}
+}
+// *** -------------------- *** //
+
+// *** CHECK IF USER IS ADMIN *** //
+function is_admin($id, $db = "") {
+	if($db == "") {
+		$db = $GLOBALS['db'];
+	}
+	$sql = "SELECT * FROM `admins` WHERE `admins`.`disabled` = '0'";
+	if(!$result = $db->query($sql)){
+	    die("Database error! (is_admin)");
+	}
+	while($row = $result->fetch_assoc()){
+		if($row['mod_id'] == $id) {
+			return true;
+		}
+	}
+	return false;
+}
+// *** ---------------------- *** //
+
+// *** GENERATES MOD ID *** //
+function mod_id($ip = "") {
+	if($ip == "") {
+		$ip = $_SERVER['REMOTE_ADDR'];
+	}
+	$mod_id = md5("storybot".$ip); //md5 hash of string "storybot" and the mod's IP
 	return $mod_id;
 }
-function deleteImage($file, $username, $password) {
-	unlink("media/temp/".$file);
-	$snapchat = new Snapchat($username, $password); //create new instance of class Snapchat
-	$id = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/reject.jpg')); //send verification snap
-    $exploded = explode("__", $file);
-    $exploded = explode(".", $exploded[1]);
-    $snapchat->send($id, array($exploded[0]), 10); //10 seconds long
-}
-function postImageStory($file, $mod_id, $username, $password) {
-	$snapchat = new Snapchat($username, $password); //create new instance of class Snapchat
-	$id = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/temp/'.$file)); //upload the temp to story
-    $snapchat->setStory($id, Snapchat::MEDIA_IMAGE); //set story
-    $id = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg')); //send verification snap
-    $exploded = explode("__", $file);
-    $exploded = explode(".", $exploded[1]);
-    $snapchat->send($id, array($exploded[0]), 10); //10 seconds long
-    rename("media/temp/".$file, "media/archive/".$file); //move temp to archive
-    $imagelog = file_get_contents("log/imagelog");
-    $imagelog .= "MOD: ".$mod_id. " - FILE: ".$file." - TIME: ".time();
-    $imagelog .= PHP_EOL;
-    file_put_contents("log/imagelog", $imagelog);
-    $count = intval(file_get_contents("log/count"));
-    $count++;
-    file_put_contents("log/count", $count);
-}
+// *** ---------------- *** //
 
-if($config['firstsetup']) {
-	die("Please edit config/config.php with your own settings, then change the 'firstsetup' value to FALSE and your panel will become live!");
+
+// *** REJECTS IMAGE AND MARKS AS ARCHIVED *** //
+function rejectImage($sid) {
+	$sql = "SELECT * FROM `images` WHERE `images`.`archived` = '0' AND `images`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (rejectImage)");
+	}
+	while($row = $result->fetch_assoc()){
+		$snapchat = $GLOBALS['snapchat'];
+		$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/reject.jpg'));
+		$snapchat->send($snap, array($row['sender']), 10);
+		archiveImage($sid);
+	}
 }
+// *** ----------------------------------- *** //
+
+// *** DECIDES WHICH TO POST AS *** //
+function postMedia($sid) {
+	$sql = "SELECT * FROM `images` WHERE `images`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (postMedia)");
+	}
+	while($row = $result->fetch_assoc()){
+		if($row['type'] == 0) {
+			postImage($sid);
+		} else {
+			postVideo($sid);
+		}
+	}
+}
+// *** ------------------------ *** //
+
+// *** POSTS SNAP TO STORY AND SENDS ACCEPT SNAP TO SENDER *** //
+function postImage($sid) {
+	$sql = "SELECT * FROM `images` WHERE `images`.`archived` = '0' AND `images`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (postImage)");
+	}
+	while($row = $result->fetch_assoc()){
+		$snapchat = $GLOBALS['snapchat'];
+		$story = $snapchat->upload(Snapchat::MEDIA_IMAGE, base64_decode($row['data']));
+		$snapchat->setStory($story, Snapchat::MEDIA_IMAGE, $GLOBALS['config']['picturetime']);
+		$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
+		$snapchat->send($snap, array($row['sender']), 10);
+		archiveImage($sid);
+	}
+}
+// *** --------------------------------------------------- *** //
+
+// *** POSTS VIDEO TO STORY AND SENDS ACCEPT SNAP TO SENDER *** //
+function postVideo($sid) {
+	$sql = "SELECT * FROM `images` WHERE `images`.`archived` = '0' AND `images`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (postVideo)");
+	}
+	while($row = $result->fetch_assoc()){
+		$snapchat = $GLOBALS['snapchat'];
+		$story = $snapchat->upload(Snapchat::MEDIA_VIDEO, base64_decode($row['data']));
+		$snapchat->setStory($story, Snapchat::MEDIA_VIDEO);
+		$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
+		$snapchat->send($snap, array($row['sender']), 10);
+		archiveImage($sid);
+	}
+}
+// *** ---------------------------------------------------- *** //
+
+// *** POSTS SNAP TO STORY AND SENDS ACCEPT SNAP TO SENDER *** //
+function postManualImage($data, $sender) {
+	$snapchat = $GLOBALS['snapchat'];
+	$story = $snapchat->upload(Snapchat::MEDIA_IMAGE, $data);
+	$snapchat->setStory($story, Snapchat::MEDIA_IMAGE, $GLOBALS['config']['picturetime']);
+	$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
+	$snapchat->send($snap, array($sender), 10);
+}
+// *** --------------------------------------------------- *** //
+
+// *** POSTS VIDEO TO STORY AND SENDS ACCEPT SNAP TO SENDER *** //
+function postManualVideo($data, $sender) {
+	if(is_array($data)) {
+		$data = end($data);
+	}
+	$snapchat = $GLOBALS['snapchat'];
+	$story = $snapchat->upload(Snapchat::MEDIA_VIDEO, $data);
+	$snapchat->setStory($story, Snapchat::MEDIA_VIDEO);
+	$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
+	$snapchat->send($snap, array($sender), 10);
+}
+// *** ---------------------------------------------------- *** //
+
+// *** SAVES IMAGE TO MYSQL DATABASE *** //
+function saveImage($data, $sender, $sid, $archived) {
+	$sql = "INSERT INTO `images` (`data`, `sender`, `time`, `sid`, `archived`, `type`) VALUES ('".base64_encode($data)."', '".$sender."', CURRENT_TIMESTAMP, '".$sid."', '".$archived."', '0')";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (saveImage)");
+	}
+	return true;
+}
+// *** ----------------------------- *** //
+
+// *** SAVES VIDEO TO MYSQL DATABASE *** //
+function saveVideo($data, $sender, $sid, $archived) {
+	if(is_array($data)) {
+		$data = end($data);
+	}
+	$sql = "INSERT INTO `images` (`data`, `sender`, `time`, `sid`, `archived`, `type`) VALUES ('".base64_encode($data)."', '".$sender."', CURRENT_TIMESTAMP, '".$sid."', '".$archived."', '1')";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (saveVideo)");
+	}
+	return true;
+}
+// *** ----------------------------- *** //
+
+// *** MARKS IMAGE AS ARCHIVED *** //
+function archiveImage($sid) {
+	$sql = "UPDATE `images` SET `archived` = '1' WHERE `images`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (archiveImage)");
+	}
+}
+// *** ----------------------- *** //
+
+// *** ADDS IMAGE TO REPORT LOG *** //
+function reportImage($sid) {
+	$sql = "SELECT * FROM `images` WHERE `images`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (reportImage)");
+	}
+	while($row = $result->fetch_assoc()){
+		$sql = "INSERT INTO `reports` (`data`, `sender`, `sid`, `type`) VALUES ('".$row['data']."', '".$row['sender']."', '".$row['sid']."', '".$row['type']."')";
+		$GLOBALS['db']->query($sql);
+		archiveImage($sid);
+	}
+}
+// *** ----------------------- *** //
+
+// *** DISPLAYS BASE64 IMAGE *** //
+function displayImage($sid) {
+	$sql = "SELECT * FROM `images` WHERE `images`.`archived` = '0' ORDER BY id ASC";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (displayImage)");
+	}
+	while($row = $result->fetch_assoc()){
+    	if($row['sid'] == $sid) {
+    		if($row['type'] == 0) {
+    			return "<img src='data:image/png;base64,".$row['data']."' class='imageview' />";   			
+    		} else {
+    			return displayVideo($sid);
+    		}
+    	}
+	}
+}
+// *** --------------------- *** //
+
+// *** DISPLAYS BASE64 VIDEO *** //
+function displayVideo($sid) { 
+	$sql = "SELECT * FROM `images` WHERE `images`.`archived` = '0' AND `images`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (displayVideo)");
+	}
+	while($row = $result->fetch_assoc()){
+   		return '<video width="270" height="420" controls><source type="video/webm" src="data:video/mov;base64,'.$row['data'].'"></video>';    			
+	}
+}
+// *** --------------------- *** //
+
+// *** DISPLAYS REPORT IMAGE *** //
+function displayReportImage($sid) {
+	$sql = "SELECT * FROM `reports`";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (displayReportImage)");
+	}
+	while($row = $result->fetch_assoc()){
+    	if($row['sid'] == $sid) {
+    		if($row['type'] == 0) {
+    			return "<img src='data:image/png;base64,".$row['data']."' style='height: 250px; width: 160px;' />";   			
+    		} else {
+    			return displayReportVideo($sid);
+    		}
+    	}
+	}
+}
+// *** --------------------- *** //
+
+// *** DISPLAYS REPORT VIDEO *** //
+function displayReportVideo($sid) { 
+	$sql = "SELECT * FROM `reports` WHERE `reports`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (displayReportVideo)");
+	}
+	while($row = $result->fetch_assoc()){
+   		return '<video width="160" height="250" controls><source type="video/webm" src="data:video/mov;base64,'.$row['data'].'"></video>';    			
+	}
+}
+// *** --------------------- *** //
+
+// *** GENERATES REPORTVIEW *** //
+function generateReports() {
+	$sql = "SELECT * FROM `reports` LIMIT 5";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (generateReports)");
+	}
+	echo "<table><tr><td>ID</td><td>Sender</td><td>Image</td><td>Ban</td><td>Ignore</td></tr>";
+	while($row = $result->fetch_assoc()){
+    	echo "<tr><td>";
+    	echo $row['id'];
+    	echo "</td><td>";
+    	echo $row['sender'];
+    	echo "</td><td>";
+    	echo displayReportImage($row['sid']);
+    	echo "</td><td><a href='action.php?type=-2&sid=".$row['sid']."' class='ban'>Ban</a></td><td><a href='action.php?type=-3&sid=".$row['sid']."' class='reports'>Ignore</a></td></tr>";
+	}
+	echo "</table>";
+}
+// *** -------------------- *** //
+
+// *** GETS OLDEST NONARCHIVED IMAGE SID *** //
+function oldestImage() {
+	$sql = "SELECT * FROM `images` WHERE `images`.`archived` = '0' ORDER BY `id` ASC";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (oldestImage)");
+	}
+	while($row = $result->fetch_assoc()){
+    	return $row['sid'];
+	}
+}
+// *** --------------------------------- *** //
+
+// *** GETS IMAGE SID *** //
+function getImageSID($id) {
+	$sql = "SELECT * FROM `images` WHERE `images`.`id` = '".$id."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (getImageSID)");
+	}
+	while($row = $result->fetch_assoc()){
+    	return $row['sid'];
+	}
+}
+// *** -------------- *** //
+
+// *** ADDS MODERATOR TO DATABASE *** //
+function addModerator($id, $db = "") {
+	if($db == "") {
+		$db = $GLOBALS['db'];
+	}
+	$i = 0;
+	$sql = "SELECT * FROM `mods`";
+	if(!$result = $db->query($sql)){
+	    die("Database error! (addModerator)");
+	}
+	while($row = $result->fetch_assoc()){
+    	$i = 1;
+	}
+	if(is_mod(mod_id()) == false) {
+		if($i == 0) {
+		$sql = "INSERT INTO `admins` (`mod_id`, `disabled`) VALUES ('".$id."', '0')";
+		$GLOBALS['db']->query($sql);
+		}
+		$sql = "INSERT INTO `mods` (`mod_id`, `regdate`) VALUES ('".$id."', '".time()."')";
+		$GLOBALS['db']->query($sql);
+	}
+}
+// *** -------------------------- *** //
+
+// *** REMOVES REPORT FROM LOG *** //
+function removeReport($sid) {
+	$sql = "DELETE FROM `reports` WHERE `reports`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (removeReport)");
+	}
+	return true;
+}
+// *** ----------------------- *** //
+
+// *** BANS SNAPCHAT USER IN DATABASE *** //
+function banUser($sid, $report) {
+	if($report == 1) {
+		$sqlstr = "reports";
+	} else {
+		$sqlstr = "images";
+	}
+	$sql = "SELECT * FROM `".$sqlstr."` WHERE `".$sqlstr."`.`sid` = '".$sid."'";
+	if(!$result = $GLOBALS['db']->query($sql)){
+	    die("Database error! (banUser)");
+	}
+	while($row = $result->fetch_assoc()){
+    	$sql = "INSERT INTO `bans` (`username`) VALUES ('".$row['sender']."')";
+		$GLOBALS['db']->query($sql);
+		if($report == 1) {
+			removeReport($sid);
+		} else {
+			archiveImage($sid);
+		}
+		return true;
+	}
+}
+// *** ------------------------------ *** //
+
 ?>
