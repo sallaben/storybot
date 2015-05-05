@@ -1,4 +1,4 @@
-# storybot - a Snapchat community story robot
+# storybot - a Snapchat community story
 
 Visit http://www.reddit.com/r/storybot if you have any questions about the bot!
 
