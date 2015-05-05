@@ -14,6 +14,10 @@ $config["firstsetup"] = true;
 $config['enabled'] = "true";
 // *** -------------------- *** //
 
+// *** DEBUG MODE (OUTPUTS ALL HTTP REQUESTS) *** // (only use this on bot.php - it'll break most other pages)
+$debug = false;
+// *** -------------------------------------- *** //
+
 // *** DATABASE VALUES *** //
 $config['dbhost'] = "DBHOST"; //database host
 $config['dbuser'] = "DBUSER"; //database user
@@ -21,9 +25,14 @@ $config['dbpass'] = 'DBPASS'; //database password
 $config['dbname'] = "DBNAME"; //database we're connecting to
 // *** --------------- *** //
 
-// *** REPLACE THIS WITH YOUR SNAPCHAT seents AND japlq4rq82 *** //
+// *** REPLACE THIS WITH YOUR SNAPCHAT USER NAME AND PASS WORD *** //
 $config['username'] = "USERNAME"; //snapchat username
 $config['password'] = 'PASSWORD'; //snapchat password
+// *** ----------------------------------------------------- *** //
+
+// *** REPLACE THIS WITH YOUR GOOGLE USER NAME AND PASS WORD *** //
+$config['gusername'] = "GUSER-NAME"; //google username
+$config['gpassword'] = 'GPASS-WORD'; //google password
 // *** ----------------------------------------------------- *** //
 
 // *** EDIT THIS TO FALSE FOR INSTANT POSTING AND TRUE FOR MODQUEUE *** //

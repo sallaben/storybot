@@ -1,6 +1,7 @@
 <?php
 define("IN_STORYBOT", 1);
 define("IN_INSTALL", 1);
+$err = false;
 if(isset($_GET['done'])) {
 	file_put_contents("lock.true", "");
 }
@@ -23,14 +24,24 @@ if(($_POST['step'] != 1) && ($_POST['step'] != 2) && ($_POST['step'] != 3)) {
 	// *** ------------------- *** //
 } elseif($_POST['step'] == 2) {
 	// *** CONNECT TO SNAPCHAT *** //
-	$snapchat = new Snapchat($_POST['snuser'], $_POST['snpass']);
-	$array = json_decode(json_encode($snapchat), true);
-	if($array['username'] == false) {
-		die("Incorrect Snapchat username or password.<hr />Please press 'back' on your browser and try again.");
+	$snapchat = new Snapchat($_POST['snuser'], $_POST['guser'], $_POST['gpass'], false);
+	$snapchat->login($_POST['snpass']);
+	if(!file_exists("../src/authData/auth-".$_POST['snuser'].".dat")) {
+		echo "Incorrect snapchat username!<br />";
+		$err = true;
+	}
+	if(!file_exists("../src/authData/gAuth-".$_POST['snuser'].".dat")) {
+		echo "Incorrect Google username or password!<br />";
+		$err = true;
+	}
+	if($err) {
+		die("Please press 'back' on your browser and try again.");
 	} else {
 		$content = file_get_contents("../config/settings.php");
 		$content = str_replace("USERNAME", $_POST['snuser'], $content);
 		$content = str_replace("PASSWORD", $_POST['snpass'], $content);
+		$content = str_replace("GUSER-NAME", $_POST['guser'], $content);
+		$content = str_replace("GPASS-WORD", $_POST['gpass'], $content);
 		file_put_contents("../config/settings.php", $content);
 	}
 	// *** ------------------- *** //
@@ -82,7 +93,9 @@ if($_POST['step'] == 1) {
 <form action="install.php" method="POST">
 <input type="hidden" name="step" value="2" />
 <input type="text" name="snuser" placeholder="Snapchat username" /><br /><br />
-<input type="password" name="snpass" placeholder="Snapchat password" /><br /><br />'; 
+<input type="password" name="snpass" placeholder="Snapchat password" /><br /><br />
+<input type="text" name="guser" placeholder="Google username" /><br /><br />
+<input type="password" name="gpass" placeholder="Google password" /><br /><br />'; 
 } elseif($_POST['step'] == 2) {
 	echo 'Successful Snapchat connection!
 <h3>Please customize your Storybot below.</h3>

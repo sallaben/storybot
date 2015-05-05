@@ -7,7 +7,7 @@ $snaps = json_decode(json_encode($snaps), true); //turn into php array
 $i = 0;
 
 if(!$snaps) {
-    die("Could not establish a connection to Snapchat!");
+    die("Could not establish a connection to Snapchat, or you have no snaps pending! Send one to the account to test.");
 }
 
 foreach((array) $snaps as $item) {
@@ -24,6 +24,7 @@ foreach((array) $snaps as $item) {
                             saveImage($data, $item['sender'], $item['id'], 1);
                         } else {
                             saveImage($data, $item['sender'], $item['id'], 0);
+                            $snapchat->sendMessage($item['sender'], "Your submission has been received! Please be patient while moderators review it.");
                         }
                     }
                 }   
@@ -36,6 +37,7 @@ foreach((array) $snaps as $item) {
                             saveVideo($data, $item['sender'], $item['id'], 1);
                         } else {
                             saveVideo($data, $item['sender'], $item['id'], 0);
+                            $snapchat->sendMessage($item['sender'], "Your submission has been received! Please be patient while moderators review it.");
                         }
                     }
                 }

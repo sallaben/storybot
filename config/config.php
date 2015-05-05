@@ -48,7 +48,8 @@ if($config['firstsetup'] != true) {
 // *** ------------------- *** //
 
 // *** INITIALIZE SNAPCHAT *** //
-$snapchat = new Snapchat($config['username'], $config['password']); //do not edit
+$snapchat = new Snapchat($config['username'], $config['gusername'], $config['gpassword'], $debug);
+$snapchat->login($config['password']);
 // *** ------------------- *** //
 
 //***************************************************************************************************
@@ -126,8 +127,7 @@ function rejectImage($sid) {
 	}
 	while($row = $result->fetch_assoc()){
 		$snapchat = $GLOBALS['snapchat'];
-		$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/reject.jpg'));
-		$snapchat->send($snap, array($row['sender']), 10);
+		$snapchat->sendMessage($row['sender'], "Your submission has been rejected. This could mean that a moderator is having a bad day, clicked the wrong button on accident, or simply that a lot of submissions are received each day and that not all of them can be accepted. Feel free to send more submissions, and better luck next time!");
 		archiveImage($sid);
 	}
 }
@@ -157,10 +157,11 @@ function postImage($sid) {
 	}
 	while($row = $result->fetch_assoc()){
 		$snapchat = $GLOBALS['snapchat'];
-		$story = $snapchat->upload(Snapchat::MEDIA_IMAGE, base64_decode($row['data']));
-		$snapchat->setStory($story, Snapchat::MEDIA_IMAGE, $GLOBALS['config']['picturetime']);
-		$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
-		$snapchat->send($snap, array($row['sender']), 10);
+		$story = base64_decode($row['data']);
+		file_put_contents("temp.jpg", $story);
+		$snapchat->setStory("temp.jpg", $GLOBALS['config']['picturetime']);
+		unlink("temp.jpg");
+		$snapchat->sendMessage($row['sender'], "Your submission has been accepted! You should be able to view it on this account's Story now!");
 		archiveImage($sid);
 	}
 }
@@ -174,10 +175,11 @@ function postVideo($sid) {
 	}
 	while($row = $result->fetch_assoc()){
 		$snapchat = $GLOBALS['snapchat'];
-		$story = $snapchat->upload(Snapchat::MEDIA_VIDEO, base64_decode($row['data']));
-		$snapchat->setStory($story, Snapchat::MEDIA_VIDEO);
-		$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
-		$snapchat->send($snap, array($row['sender']), 10);
+		$story = base64_decode($row['data']);
+		file_put_contents("temp.mov", $story);
+		$snapchat->setStory("temp.mov", $GLOBALS['config']['picturetime']);
+		unlink("temp.mov");
+		$snapchat->sendMessage($row['sender'], "Your submission has been accepted! You should be able to view it on this account's Story now!");
 		archiveImage($sid);
 	}
 }
@@ -185,11 +187,12 @@ function postVideo($sid) {
 
 // *** POSTS SNAP TO STORY AND SENDS ACCEPT SNAP TO SENDER *** //
 function postManualImage($data, $sender) {
-	$snapchat = $GLOBALS['snapchat'];
-	$story = $snapchat->upload(Snapchat::MEDIA_IMAGE, $data);
-	$snapchat->setStory($story, Snapchat::MEDIA_IMAGE, $GLOBALS['config']['picturetime']);
-	$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
-	$snapchat->send($snap, array($sender), 10);
+		$snapchat = $GLOBALS['snapchat'];
+		$story = base64_decode($data);
+		file_put_contents("temp.jpg", $story);
+		$snapchat->setStory("temp.jpg", $GLOBALS['config']['picturetime']);
+		unlink("temp.jpg");
+		$snapchat->sendMessage($row['sender'], "Your submission has been accepted! You should be able to view it on this account's Story now!");
 }
 // *** --------------------------------------------------- *** //
 
@@ -199,10 +202,11 @@ function postManualVideo($data, $sender) {
 		$data = end($data);
 	}
 	$snapchat = $GLOBALS['snapchat'];
-	$story = $snapchat->upload(Snapchat::MEDIA_VIDEO, $data);
-	$snapchat->setStory($story, Snapchat::MEDIA_VIDEO);
-	$snap = $snapchat->upload(Snapchat::MEDIA_IMAGE, file_get_contents('media/accept.jpg'));
-	$snapchat->send($snap, array($sender), 10);
+	$story = base64_decode($data);
+	file_put_contents("temp.mov", $story);
+	$snapchat->setStory("temp.mov", $GLOBALS['config']['videotime']);
+	unlink("temp.mov");
+		$snapchat->sendMessage($row['sender'], "Your submission has been accepted! You should be able to view it on this account's Story now!");
 }
 // *** ---------------------------------------------------- *** //
 
