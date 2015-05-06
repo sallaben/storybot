@@ -48,8 +48,10 @@ if($config['firstsetup'] != true) {
 // *** ------------------- *** //
 
 // *** INITIALIZE SNAPCHAT *** //
-$snapchat = new Snapchat($config['username'], $config['gusername'], $config['gpassword'], $debug);
-$snapchat->login($config['password']);
+if(!$config['firstsetup']) {
+	$snapchat = new Snapchat($config['username'], $config['gusername'], $config['gpassword'], $debug);
+	$snapchat->login($config['password']);
+}
 // *** ------------------- *** //
 
 //***************************************************************************************************
