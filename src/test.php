@@ -1,6 +1,8 @@
 <pre><?php
 $enabled = false;
-
+if(!$enabled) {
+  die;
+}
 require_once("snapchat.php");
 
 //////////// CONFIG ////////////
